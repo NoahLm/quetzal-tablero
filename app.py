@@ -51,6 +51,19 @@ def deals_panel():
     return f"<h2>Deals by stage</h2><table><tr><th>Stage</th><th>Total</th></tr>{rows}</table>"
 
 
+def top_accounts_panel():
+    deals = crm_json("/api/deals")
+    if deals is None:
+        return ""
+    totals = {}
+    for d in deals.get("items") or []:
+        name = str(d.get("account_name") or "")
+        totals[name] = totals.get(name, 0.0) + float(d.get("amount_mxn") or 0)
+    top = sorted(totals.items(), key=lambda kv: kv[1], reverse=True)[:5]
+    rows = "".join(f"<tr><td>{html.escape(name)}</td><td>${amount:,.0f} MXN</td></tr>" for name, amount in top)
+    return f"<h2>Top accounts</h2><table><tr><th>Account</th><th>Deals</th></tr>{rows}</table>"
+
+
 def page():
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
@@ -66,6 +79,7 @@ def page():
 <p>The numbers of {CRM}, at a glance.</p>
 {accounts_panel()}
 {deals_panel()}
+{top_accounts_panel()}
 </body></html>"""
 
 
