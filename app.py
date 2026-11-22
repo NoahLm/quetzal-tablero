@@ -37,6 +37,20 @@ def accounts_panel():
     return f"<h2>Accounts by city</h2><table><tr><th>City</th><th>Accounts</th></tr>{rows}</table>"
 
 
+STAGES = (("prospecto", "Lead"), ("propuesta", "Proposal"), ("ganado", "Won"), ("perdido", "Lost"))
+
+
+def deals_panel():
+    deals = crm_json("/api/deals")
+    if deals is None:
+        return ""
+    totals = deals.get("totals_mxn") or {}
+    rows = "".join(
+        f"<tr><td>{label}</td><td>${float(totals.get(key, 0)):,.0f} MXN</td></tr>" for key, label in STAGES
+    )
+    return f"<h2>Deals by stage</h2><table><tr><th>Stage</th><th>Total</th></tr>{rows}</table>"
+
+
 def page():
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
@@ -51,6 +65,7 @@ def page():
 <h1>Tablero</h1>
 <p>The numbers of {CRM}, at a glance.</p>
 {accounts_panel()}
+{deals_panel()}
 </body></html>"""
 
 
