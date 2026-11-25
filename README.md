@@ -1,4 +1,4 @@
-# Tablero
+# Sales Board
 
 A small dashboard of the numbers in Quetzal CRM, for the Tostadora Quetzal demo organization.
 

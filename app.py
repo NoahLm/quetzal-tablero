@@ -1,4 +1,4 @@
-"""Tablero: a small dashboard of the numbers in Quetzal CRM.
+"""Sales Board: a small dashboard of the numbers in Quetzal CRM.
 
 It reads the CRM over the address Momoto gives it ($APP_QUETZAL_CRM_URL).
 Until the CRM's owner allows it, that address does not answer and the page says so.
@@ -26,60 +26,67 @@ def crm_json(path):
         return None
 
 
+def items(data, *keys):
+    """The list in a CRM answer: the answer itself, or the first of these keys that holds one."""
+    if isinstance(data, list):
+        return data
+    for key in keys:
+        if isinstance((data or {}).get(key), list):
+            return data[key]
+    return []
+
+
 def accounts_panel():
+    # ponytail: two CRM shapes, the one with a stats route and the one with only the accounts.
     stats = crm_json("/api/stats")
-    if stats is None:
-        return f'<p class="wait">Waiting for access to {CRM}.</p>'
-    rows = "".join(
-        f"<tr><td>{html.escape(str(s.get('ciudad', '')))}</td><td>{int(s.get('cuentas', 0))}</td></tr>"
-        for s in stats
-    )
+    if stats is not None:
+        counts = {str(s.get("ciudad", s.get("city", ""))): int(s.get("cuentas", s.get("accounts", 0))) for s in items(stats, "stats")}
+    else:
+        accounts = crm_json("/api/accounts")
+        if accounts is None:
+            return f'<p class="wait">Waiting for access to {CRM}.</p>'
+        counts = {}
+        for a in items(accounts, "accounts", "items"):
+            city = str(a.get("city") or a.get("ciudad") or "")
+            counts[city] = counts.get(city, 0) + 1
+    rows = "".join(f"<tr><td>{html.escape(city)}</td><td>{n}</td></tr>" for city, n in sorted(counts.items()))
     return f"<h2>Accounts by city</h2><table><tr><th>City</th><th>Accounts</th></tr>{rows}</table>"
 
 
-STAGES = (("prospecto", "Lead"), ("propuesta", "Proposal"), ("ganado", "Won"), ("perdido", "Lost"))
+STAGES = (("lead", "Lead"), ("proposal", "Proposal"), ("won", "Won"), ("lost", "Lost"))
+SPANISH = {"prospecto": "lead", "propuesta": "proposal", "ganado": "won", "perdido": "lost"}
 
 
 def deals_panel():
     deals = crm_json("/api/deals")
     if deals is None:
         return ""
-    totals = deals.get("totals_mxn") or {}
+    totals = {SPANISH.get(k, k): v for k, v in ((deals or {}).get("totals_mxn") or {}).items()} if isinstance(deals, dict) else {}
+    if not totals:
+        for d in items(deals, "deals", "items"):
+            stage = SPANISH.get(str(d.get("stage") or ""), str(d.get("stage") or ""))
+            totals[stage] = totals.get(stage, 0.0) + float(d.get("amount_mxn") or 0)
     rows = "".join(
         f"<tr><td>{label}</td><td>${float(totals.get(key, 0)):,.0f} MXN</td></tr>" for key, label in STAGES
     )
     return f"<h2>Deals by stage</h2><table><tr><th>Stage</th><th>Total</th></tr>{rows}</table>"
 
 
-def top_accounts_panel():
-    deals = crm_json("/api/deals")
-    if deals is None:
-        return ""
-    totals = {}
-    for d in deals.get("items") or []:
-        name = str(d.get("account_name") or "")
-        totals[name] = totals.get(name, 0.0) + float(d.get("amount_mxn") or 0)
-    top = sorted(totals.items(), key=lambda kv: kv[1], reverse=True)[:5]
-    rows = "".join(f"<tr><td>{html.escape(name)}</td><td>${amount:,.0f} MXN</td></tr>" for name, amount in top)
-    return f"<h2>Top accounts</h2><table><tr><th>Account</th><th>Deals</th></tr>{rows}</table>"
-
-
 def page():
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Tablero</title>
+<title>Sales Board</title>
 <style>
  body {{ font-family: system-ui, sans-serif; margin: 2rem auto; max-width: 48rem; padding: 0 1rem; color: #222; }}
  table {{ border-collapse: collapse; width: 100%; margin-bottom: 2rem; }}
  th, td {{ text-align: left; padding: .4rem .6rem; border-bottom: 1px solid #ddd; }}
  .wait {{ padding: 1rem; background: #fff6e0; border-radius: .5rem; }}
 </style></head><body>
-<h1>Tablero</h1>
+<h1>Sales Board</h1>
 <p>The numbers of {CRM}, at a glance.</p>
 {accounts_panel()}
 {deals_panel()}
-{top_accounts_panel()}
 </body></html>"""
 
 
